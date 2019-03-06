@@ -22,9 +22,9 @@ return edge for given vertex pair only if edge exist.
 This is more ``general`` way to check edge existence between any given vertex pairs comparing using ``_to`` on query parameter
 
 
-.. code:: bashn
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/graphs/checkEdges -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/graphs/checkEdges -H 'Content-Type: Application/json' -d '
    [
      {"label": "talk_friend", "direction": "out", "from": 1, "to": 100},
      {"label": "talk_friend", "direction": "out", "from": 1, "to": 101}
@@ -40,9 +40,9 @@ Select edges with query.
 
 Here is a very basic query to fetch all edges that start from source vertex "101".
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
    {
 
        "srcVertices": [
@@ -404,7 +404,7 @@ You can also run two queries concurrently, and filter the result of one query wi
 S2Graph will run two concurrent queries, one in the main step, and another in the filter out clause. Here is more practical example.
 
 
-.. coce:: bash
+.. code:: bash
 
    {
      "filterOut": {
@@ -657,9 +657,9 @@ S2Graph provides step-level aggregation so that users can take the top K items f
 
 **sample Example**
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
    {
      "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
      "steps": [
@@ -863,10 +863,10 @@ Add more steps for wider traversals. Be gentle on the limit options since the nu
 
 Example 1. From label "graph_test", select the first 100 edges that start from vertex "account_id = 1", with default sorting.
 
-.. code:: bash
+.. parsed-literal::
 
 
-   curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
    {
        "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
        "steps": [
@@ -877,9 +877,9 @@ Example 1. From label "graph_test", select the first 100 edges that start from v
 
 Example 2. Now select between the 50th and 100th edges from the same query.
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
    {
        "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
        "steps": [
@@ -889,9 +889,9 @@ Example 2. Now select between the 50th and 100th edges from the same query.
 
 Example 3. Now add a time range filter so that you will only get the edges that were inserted between 1416214118000 and 1416300000000.
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
    {
        "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
        "steps": [
@@ -901,9 +901,9 @@ Example 3. Now add a time range filter so that you will only get the edges that 
 
 Example 4. Now add scoring rule to sort the result by indexed properties "time" and "weight", with weights of 1.5 and 10, respectively.
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
    {
        "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
        "steps": [
@@ -914,9 +914,9 @@ Example 4. Now add scoring rule to sort the result by indexed properties "time" 
 
 Example 5. Make a two-step query to fetch friends of friends of a user "account_id = 1". (Limit the first step by 10 friends and the second step by 100.)
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
    {
        "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
        "steps": [
@@ -928,9 +928,9 @@ Example 5. Make a two-step query to fetch friends of friends of a user "account_
 
 Example 6. Make a two-step query to fetch the music playlist of the friends of user "account_id = 1". Limit the first step by 10 friends and the second step by 100 tracks.)
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
    {
        "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
        "steps": [
@@ -942,9 +942,9 @@ Example 6. Make a two-step query to fetch the music playlist of the friends of u
 
 Example 7. Query the friends of user "account_id = 1" who played the track "track_id = 200".
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
    {
        "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
        "steps": [

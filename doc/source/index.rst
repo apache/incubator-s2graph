@@ -15,7 +15,6 @@ dev@s2graph.incubator.apache.org is for people who want to contribute to S2Graph
 
    getting_started/index
    getting_started/your_first_graph
-   design/data_model
    api/index
 
 ..

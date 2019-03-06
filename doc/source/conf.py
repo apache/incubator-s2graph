@@ -186,3 +186,7 @@ epub_exclude_files = ['search.html']
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}
+
+# -- Project specific configuration ------------------------------------------
+example_base_url_value = 'localhost:8000'
+rst_epilog = '.. |example_base_url| replace:: %s' % example_base_url_value

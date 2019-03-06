@@ -9,9 +9,9 @@ First, we need a name for the new service.
 
 The following POST query will create a service named ``KakaoFavorites``
 
-.. code:: bash
+.. parsed-literal::
 
-  curl -XPOST localhost:9000/admin/createService -H 'Content-Type: Application/json' -d '
+  curl -XPOST |example_base_url|/admin/createService -H 'Content-Type: Application/json' -d '
   {
     "serviceName": "KakaoFavorites",
     "compressionAlgorithm" : "gz"
@@ -19,17 +19,17 @@ The following POST query will create a service named ``KakaoFavorites``
 
 To make sure the service is created correctly, check out the following
 
-.. code:: bash
+.. parsed-literal::
 
-  curl -XGET localhost:9000/admin/getService/KakaoFavorites
+  curl -XGET |example_base_url|/admin/getService/KakaoFavorites
 
 Next, we will need some friends.
 ---------------------------------------------
 In S2Graph, relationships are organized as labels. Create a ``friends`` label with the following ``createLabel`` API call:
 
-.. code:: bash
+.. parsed-literal::
 
-  curl -XPOST localhost:9000/admin/createLabel -H 'Content-Type: Application/json' -d '
+  curl -XPOST |example_base_url|/admin/createLabel -H 'Content-Type: Application/json' -d '
   {
     "label": "friends",
     "srcServiceName": "KakaoFavorites",
@@ -46,15 +46,15 @@ In S2Graph, relationships are organized as labels. Create a ``friends`` label wi
 
 Check if the label has been created correctly:
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XGET localhost:9000/admin/getLabel/friends
+   curl -XGET |example_base_url|/admin/getLabel/friends
 
 Now that the label ``friends`` is ready, we can store the friendship data. Entries of a label are called edges, and you can add edges with ``edges/insert`` API:
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/mutate/edge/insert -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/mutate/edge/insert -H 'Content-Type: Application/json' -d '
    [
       {"from":"Elmo","to":"Big Bird","label":"friends","props":{},"timestamp":1444360152477},
       {"from":"Elmo","to":"Ernie","label":"friends","props":{},"timestamp":1444360152478},
@@ -66,9 +66,9 @@ Now that the label ``friends`` is ready, we can store the friendship data. Entri
 
 Query friends of Elmo with ``getEdges`` API:
 
-.. code:: bash
+.. parsed-literal::
 
-  curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+  curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
   {
     "srcVertices": [{"serviceName": "KakaoFavorites", "columnName": "userName", "id":"Elmo"}],
     "steps": [
@@ -78,9 +78,9 @@ Query friends of Elmo with ``getEdges`` API:
 
 Now query friends of Cookie Monster:
 
-.. code:: bash
+.. parsed-literal::
 
-  curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+  curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
   {
     "srcVertices": [{"serviceName": "KakaoFavorites", "columnName": "userName", "id":"Cookie Monster"}],
     "steps": [
@@ -93,9 +93,9 @@ Users of Kakao Favorites will be able to ``post`` URLs of their favorite website
 
 We will need a new label ``post`` for this data:
 
-.. code:: bash
+.. parsed-literal::
 
-  curl -XPOST localhost:9000/admin/createLabel -H 'Content-Type: Application/json' -d '
+  curl -XPOST |example_base_url|/admin/createLabel -H 'Content-Type: Application/json' -d '
   {
     "label": "post",
     "srcServiceName": "KakaoFavorites",
@@ -112,9 +112,9 @@ We will need a new label ``post`` for this data:
 
 Now, insert some posts of the users:
 
-.. code:: bash
+.. parsed-literal::
 
-  curl -XPOST localhost:9000/mutate/edge/insert -H 'Content-Type: Application/json' -d '
+  curl -XPOST |example_base_url|/mutate/edge/insert -H 'Content-Type: Application/json' -d '
   [
     {"from":"Big Bird","to":"www.kakaocorp.com/en/main","label":"post","props":{},"timestamp":1444360152477},
     {"from":"Big Bird","to":"github.com/kakao/s2graph","label":"post","props":{},"timestamp":1444360152478},
@@ -127,9 +127,9 @@ Now, insert some posts of the users:
 
 Query posts of Big Bird:
 
-.. code:: bash
+.. parsed-literal::
 
-  curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+  curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
   {
     "srcVertices": [{"serviceName": "KakaoFavorites", "columnName": "userName", "id":"Big Bird"}],
     "steps": [
@@ -144,9 +144,9 @@ So far, we have designed a label schema for the labels ``friends`` and ``post``,
 This should be enough for creating the timeline feature! The following two-step query will return the URLs for Elmo's timeline, which are the posts of Elmo's friends:
 
 
-.. code:: bash
+.. parsed-literal::
 
-  curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+  curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
   {
     "srcVertices": [{"serviceName": "KakaoFavorites", "columnName": "userName", "id":"Elmo"}],
     "steps": [
@@ -157,9 +157,9 @@ This should be enough for creating the timeline feature! The following two-step 
 
 Also try Cookie Monster's timeline:
 
-.. code:: bash
+.. parsed-literal::
 
-  curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+  curl -XPOST |example_base_url|/graphs/getEdges -H 'Content-Type: Application/json' -d '
   {
     "srcVertices": [{"serviceName": "KakaoFavorites", "columnName": "userName", "id":"Cookie Monster"}],
     "steps": [
@@ -170,9 +170,3 @@ Also try Cookie Monster's timeline:
 
 
 The example above is by no means a full blown social network timeline, but it gives you an idea of how to represent, store and query graph data with S2Graph.
-
-We also provide a simple script under ``script/test.sh`` so that you can see if everything is setup correctly.
-
-.. code:: bash
-
-  sh script/test.sh
