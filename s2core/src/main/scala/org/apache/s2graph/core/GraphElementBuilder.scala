@@ -324,7 +324,7 @@ class GraphElementBuilder(graph: S2GraphLike) {
           case _ =>
             edge
               .copyEdgeWithState(S2Edge.propsToState(edge.updatePropsWithTs()))
-              .copyTs(requestTs)
+              .copyOp(GraphUtil.operations("delete"))
         }
 
         val edgeToDelete = edgeWithScore.copy(edge = copiedEdge)

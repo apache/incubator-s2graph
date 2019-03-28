@@ -22,6 +22,7 @@ package org.apache.s2graph.core.parsers
 import org.apache.s2graph.core.GraphExceptions.WhereParserException
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core._
+import org.apache.s2graph.core.schema.Label
 import org.apache.s2graph.core.types.InnerValLike
 
 import scala.annotation.tailrec
@@ -51,6 +52,17 @@ trait ExtractValue {
     }
   }
 
+  def anyValueToCompare(label: Label, dir: Int, key: String, value: AnyRef): InnerValLike = {
+    val labelMeta = label.metaPropsInvMap.getOrElse(key, throw WhereParserException(s"Where clause contains not existing property name: $key"))
+    val (srcColumn, tgtColumn) = label.srcTgtColumn(dir)
+    val dataType = key match {
+      case "_to" | "to" => tgtColumn.columnType
+      case "_from" | "from" => srcColumn.columnType
+      case _ => labelMeta.dataType
+    }
+    toInnerVal(value, dataType, label.schemaVersion)
+  }
+
   private def edgePropToInnerVal(edge: S2EdgeLike, key: String): InnerValLike = {
     val (propKey, parentEdge) = findParentEdge(edge, key)
 
@@ -70,14 +82,7 @@ trait ExtractValue {
     else {
       val (propKey, _) = findParentEdge(edge, key)
 
-      val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
-      val (srcColumn, tgtColumn) = label.srcTgtColumn(edge.getDir())
-      val dataType = propKey match {
-        case "_to" | "to" => tgtColumn.columnType
-        case "_from" | "from" => srcColumn.columnType
-        case _ => labelMeta.dataType
-      }
-      toInnerVal(value, dataType, label.schemaVersion)
+      anyValueToCompare(label, edge.getDir(), propKey, value)
     }
   }
 

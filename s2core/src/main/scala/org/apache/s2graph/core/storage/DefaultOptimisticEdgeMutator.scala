@@ -44,7 +44,7 @@ class DefaultOptimisticEdgeMutator(graph: S2GraphLike,
       val futures = for {
         edgeWithScore <- stepInnerResult.edgeWithScores
       } yield {
-        val edge = edgeWithScore.edge
+        val edge = edgeWithScore.edge.copyTs(requestTs)
 
         val edgeSnapshot = edge.copyEdgeWithState(S2Edge.propsToState(edge.updatePropsWithTs()))
         val reversedSnapshotEdgeMutations = serDe.snapshotEdgeSerializer(edgeSnapshot.toSnapshotEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put))

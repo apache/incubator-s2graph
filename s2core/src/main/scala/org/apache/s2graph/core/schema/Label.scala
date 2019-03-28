@@ -373,7 +373,8 @@ case class Label(id: Option[Int], label: String,
   lazy val metaPropsMap = metaProps.map(x => (x.seq, x)).toMap
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
   lazy val metaPropNames = metaProps.map(x => x.name)
-  lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
+  lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)).toMap
+  lazy val validLabelMetasInvMap = labelMetas.map(x => (x.name, x)).filter(_._2.seq >= 0).toMap
 
   /** this is used only by edgeToProps */
   lazy val metaPropsDefaultMap = (for {

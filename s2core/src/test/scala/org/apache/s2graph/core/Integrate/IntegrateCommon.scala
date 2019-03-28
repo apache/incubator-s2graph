@@ -193,8 +193,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     val idxDropInStoreDegree = "idx_drop_in_store_degree"
     val idxDropOutStoreDegree = "idx_drop_out_store_degree"
 
-    val NumOfEachTest = 30
-    val HttpRequestWaitingTime = Duration("60 seconds")
+    val NumOfEachTest = 3
+    val HttpRequestWaitingTime = Duration("600 seconds")
 
     val createService = s"""{"serviceName" : "$testServiceName"}"""
 

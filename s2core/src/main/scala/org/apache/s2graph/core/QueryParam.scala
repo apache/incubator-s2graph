@@ -410,7 +410,7 @@ case class QueryParam(labelName: String,
     Bytes.add(bytes, optionalCacheKey)
   }
 
-  private def convertToInner(kvs: Seq[(String, JsValue)], edgeOpt: Option[S2EdgeLike]): Seq[(LabelMeta, InnerValLike)] = {
+  def convertToInner(kvs: Seq[(String, JsValue)], edgeOpt: Option[S2EdgeLike]): Seq[(LabelMeta, InnerValLike)] = {
     kvs.map { case (propKey, propValJs) =>
       propValJs match {
         case JsString(in) if edgeOpt.isDefined && in.contains("_parent.") =>

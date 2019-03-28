@@ -21,20 +21,20 @@ package org.apache.s2graph.core.Integrate
 
 import java.util.concurrent.TimeUnit
 
+import org.apache.s2graph.core.{GraphUtil, S2Edge}
+import org.scalatest.BeforeAndAfterEach
 import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import scala.util.Random
 
-class StrongLabelDeleteTest extends IntegrateCommon {
+class StrongLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
 
   import StrongDeleteUtil._
   import TestUtil._
 
   test("Strong consistency select") {
-    insertEdgesSync(bulkEdges(): _*)
-
     var result = getEdgesSync(query(0))
     (result \ "results").as[List[JsValue]].size should be(2)
     result = getEdgesSync(query(10))
@@ -125,7 +125,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       val resultEdges = (result \ "results").as[Seq[JsValue]]
       resultEdges.isEmpty should be(true)
 
-      val degreeAfterDeleteAll = getDegree(result)
+      val degreeAfterDeleteAll = getDegree(result, resultEdges.size)
 
       degreeAfterDeleteAll should be(0)
       degreeAfterDeleteAll === (0)
@@ -166,7 +166,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val queryJson = query(id = src)
     val result = getEdgesSync(queryJson)
     val resultSize = (result \ "size").as[Long]
-    val resultDegree = getDegree(result)
+    val resultDegree = getDegree(result, resultSize)
 
     //        println(result)
 
@@ -212,8 +212,18 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val resultEdges = (result \ "results").as[Seq[JsValue]]
     resultEdges.isEmpty should be(true)
 
-    val degreeAfterDeleteAll = getDegree(result)
+    val degreeAfterDeleteAll = getDegree(result, resultEdges.size)
     degreeAfterDeleteAll should be(0)
+  }
+
+  override def beforeEach(): Unit = {
+    cleanUp()
+    initTestData()
+  }
+
+  override def initTestData(): Unit = {
+    super.initTestData()
+    insertEdgesSync(bulkEdges(): _*)
   }
 
   object StrongDeleteUtil {
@@ -224,9 +234,21 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val batchSize = 10
     val testNum = 10
     val numOfBatch = 10
+    import scala.collection.JavaConverters._
+
+    def cleanUp() = {
+      val edgesToDelete = graph.edges().asScala.toSeq.map { edge =>
+        edge.asInstanceOf[S2Edge].copyOp(GraphUtil.operations("delete"))
+      }
+      val ls = edgesToDelete.toList
+      Await.result(graph.mutateEdges(edgesToDelete, withWait = true), Duration("60 seconds"))
+    }
 
     def testInner(startTs: Long, src: Long) = {
-      val lastOps = Array.fill(maxTgtId)("none")
+      import scala.collection.mutable
+      val lastOps = mutable.Map.empty[String, String]
+//      Array.fill(maxTgtId)("none")
+
       var currentTs = startTs
 
       val allRequests = for {
@@ -238,7 +260,8 @@ class StrongLabelDeleteTest extends IntegrateCommon {
         val tgt = Random.nextInt(maxTgtId)
         val op = if (Random.nextDouble() < 0.5) "delete" else "update"
 
-        lastOps(tgt) = op
+        lastOps += (tgt.toString -> op)
+//        lastOps(tgt) = op
         Seq(currentTs, op, "e", src, tgt, labelName, "{}").mkString("\t")
       }
 
@@ -254,7 +277,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       val queryJson = query(id = src)
       val result = getEdgesSync(queryJson)
       val resultSize = (result \ "size").as[Long]
-      val resultDegree = getDegree(result)
+      val resultDegree = getDegree(result, resultSize)
 
       println(lastOps.toList)
       println(result)
@@ -295,8 +318,8 @@ class StrongLabelDeleteTest extends IntegrateCommon {
             ]]
           }""")
 
-    def getDegree(jsValue: JsValue): Long = {
-      ((jsValue \ "degrees") \\ "_degree").headOption.map(_.as[Long]).getOrElse(0L)
+    def getDegree(jsValue: JsValue, defaultSize: Long): Long = {
+      ((jsValue \ "degrees") \\ "_degree").headOption.map(_.as[Long]).getOrElse(defaultSize)
     }
   }
 
