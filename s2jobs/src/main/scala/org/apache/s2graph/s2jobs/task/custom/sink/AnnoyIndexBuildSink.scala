@@ -32,9 +32,9 @@ class AnnoyIndexBuildSink(queryName: String, conf: TaskConf) extends Sink(queryN
   override def write(inputDF: DataFrame): Unit = {
     val df = repartition(preprocess(inputDF), inputDF.sparkSession.sparkContext.defaultParallelism)
 
-    if (inputDF.isStreaming) throw new IllegalStateException("AnnoyIndexBuildSink can not be run as streaming.")
+    if (df.isStreaming) throw new IllegalStateException("AnnoyIndexBuildSink can not be run as streaming.")
     else {
-      ALSModelProcess.buildAnnoyIndex(conf, inputDF)
+      ALSModelProcess.buildAnnoyIndex(conf, df)
     }
   }
 }
