@@ -1,0 +1,90 @@
+{
+  "swagger":"2.0",
+  "info":{
+    "description":"This is S2Graph HTTP Server.",
+    "version":"1.0.0",
+    "title":"S2Graph HTTP Server",
+    "termsOfService":"http://swagger.io/terms/",
+    "contact":{
+      "email":"apiteam@swagger.io"
+    },
+    "license":{
+      "name":"Apache 2.0",
+      "url":"http://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  },
+  "tags":[
+    {
+      "name":"s2graph",
+      "description":"S2Graph HTTP Server",
+      "externalDocs":{
+        "description":"Find out more about Apache S2Graph",
+        "url":"http://s2graph.incubator.apache.org/"
+      }
+    }
+  ],
+  "schemes":[
+    "http",
+    "https"
+  ],
+  "paths":{
+    "/admin":{
+      "post":{
+        "tags":[
+          "admin"
+        ],
+        "summary":"Admin Apis for Management Service, Label, Index ..",
+        "description":"",
+        "operationId":"createService",
+        "consumes":[
+          "application/json",
+        ],
+        "produces":[
+          "application/json"
+        ],
+        "parameters":[
+          {
+            "in":"body",
+            "name":"body",
+            "description":"Service",
+            "required":true,
+            "schema":{
+              "$ref":"#/definitions/Service"
+            }
+          }
+        ],
+        "responses":{
+          "405":{
+            "description":"Invalid input"
+          }
+        }
+      }
+    }
+  },
+  "definitions":{
+    "Service":{
+      "type":"object",
+      "properties":{
+        "serviceName":{
+          "type":"string"
+        },
+        "cluster":{
+          "type":"string"
+        },
+        "hTableName":{
+          "type":"string"
+        },
+        "hTableTTL":{
+          "type":"integer"
+        },
+        "preSplitSize":{
+          "type":"integer"
+        }
+      }
+    }
+  },
+  "externalDocs":{
+    "description":"Find out more about Apache S2Graph",
+    "url":"http://s2graph.incubator.apache.org/"
+  }
+}
