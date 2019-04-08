@@ -2,11 +2,10 @@
   "swagger":"2.0",
   "info":{
     "description":"This is S2Graph HTTP Server.",
-    "version":"1.0.0",
+    "version":"0.2",
     "title":"S2Graph HTTP Server",
-    "termsOfService":"http://swagger.io/terms/",
     "contact":{
-      "email":"apiteam@swagger.io"
+      "email":"dev@s2graph.incubator.apache.org"
     },
     "license":{
       "name":"Apache 2.0",
@@ -28,12 +27,12 @@
     "https"
   ],
   "paths":{
-    "/admin":{
+    "/admin/createService":{
       "post":{
         "tags":[
           "admin"
         ],
-        "summary":"Admin Apis for Management Service, Label, Index ..",
+        "summary":"Create a service",
         "description":"",
         "operationId":"createService",
         "consumes":[
@@ -54,8 +53,90 @@
           }
         ],
         "responses":{
-          "405":{
-            "description":"Invalid input"
+          "201": {
+            "description":"Successfully created",
+            "schema":{
+              "$ref":"#/definitions/ServiceResponse"
+            }
+          },
+          "400":{
+            "description": "Bad request"
+          }
+        }
+      }
+    },
+    "/admin/createLabel":{
+      "post":{
+        "tags":[
+          "admin"
+        ],
+        "summary":"Create a label",
+        "description":"",
+        "operationId":"createLabel",
+        "consumes":[
+          "application/json",
+        ],
+        "produces":[
+          "application/json"
+        ],
+        "parameters":[
+          {
+            "in":"body",
+            "name":"body",
+            "description":"Service",
+            "required":true,
+            "schema":{
+              "$ref":"#/definitions/Label"
+            }
+          }
+        ],
+        "responses":{
+          "201":{
+            "description":"Successful operation",
+            "schema":{
+              "$ref":"#/definitions/LabelResponse"
+            }
+          },
+          "400":{
+            "description": "Bad request"
+          }
+        }
+      }
+    },
+    "/admin/addIndex":{
+      "post":{
+        "tags":[
+          "admin"
+        ],
+        "summary":"Add indices to a label",
+        "description":"",
+        "operationId":"addIndex",
+        "consumes":[
+          "application/json",
+        ],
+        "produces":[
+          "application/json"
+        ],
+        "parameters":[
+          {
+            "in":"body",
+            "name":"body",
+            "description":"Service",
+            "required":true,
+            "schema":{
+              "$ref":"#/definitions/LabelIndexAddition"
+            }
+          }
+        ],
+        "responses":{
+          "200":{
+            "description":"Successful operation",
+            "schema":{
+              "$ref":"#/definitions/LabelIndexAddition"
+            }
+          },
+          "400":{
+            "description": "Bad request"
           }
         }
       }
@@ -64,21 +145,348 @@
   "definitions":{
     "Service":{
       "type":"object",
+      "required": [
+        "serviceName"
+      ],
       "properties":{
         "serviceName":{
+          "description": "User defined namespace",
           "type":"string"
         },
         "cluster":{
+          "description": "Zookeeper quorum address",
           "type":"string"
         },
         "hTableName":{
+          "description": "HBase table name",
           "type":"string"
         },
         "hTableTTL":{
+          "description": "Time to live setting for data",
           "type":"integer"
         },
         "preSplitSize":{
+          "description": "Factor for the table pre-split size",
           "type":"integer"
+        }
+      }
+    },
+    "Label":{
+      "type":"object",
+      "required": [
+        "label",
+        "srcServiceName",
+        "srcColumnName",
+        "srcColumnType",
+        "tgtColumnName",
+        "tgtColumnType"
+      ],
+      "properties":{
+        "label":{
+          "description": "Name of the relation",
+          "type":"string"
+        },
+        "srcServiceName":{
+          "description": "Source column’s service",
+          "type":"string"
+        },
+        "srcColumnName":{
+          "description": "Source column’s name",
+          "type":"string"
+        },
+        "srcColumnType":{
+          "description": "Source column’s data type",
+          "type":"string",
+          "enum": [
+            "long",
+            "integer",
+            "string"
+          ]
+        },
+        "tgtServiceName":{
+          "description": "Target column’s service",
+          "type":"string"
+        },
+        "tgtColumnName":{
+          "description": "Target column’s name",
+          "type":"string"
+        },
+        "tgtColumnType":{
+          "description": "Target column’s data type",
+          "type":"string",
+          "enum": [
+            "long",
+            "integer",
+            "string"
+          ]
+        },
+        "indices": {
+          "description": "Index definitions on the label",
+          "type": "array",
+          "items": {
+            "schema":{
+              "$ref":"#/definitions/LabelIndexDefinition"
+            }
+          }
+        },
+        "props": {
+          "description": "Property definitions on the label",
+          "type": "array",
+          "items": {
+            "schema":{
+              "$ref":"#/definitions/LabelPropertyDefinition"
+            }
+          }
+        },
+        "isDirected":{
+          "description": "Wether the label is directed or undirected",
+          "type":"integer"
+        },
+        "serviceName":{
+          "description": "Which service the label belongs to",
+          "type":"string"
+        },
+        "hTableName":{
+          "description": "A dedicated HBase table to your Label",
+          "type":"string"
+        },
+        "hTableTTL":{
+          "description": "Data time to live setting",
+          "type":"integer"
+        },
+        "consistencyLevel":{
+          "description": "If set to ‘strong’, only one edge is alowed between a pair of source/ target vertices. Set to ‘weak’, and multiple-edge is supported",
+          "type":"string",
+          "enum": [
+            "weak",
+            "strong"
+          ]
+        }
+      }
+    },
+   "LabelIndexAddition":{
+      "type":"object",
+      "required": [
+        "label",
+      ],
+      "properties":{
+        "label":{
+          "description": "Name of the relation",
+          "type":"string"
+        },
+        "indices": {
+          "description": "Index definitions on the label",
+          "type": "array",
+          "items": {
+            "schema":{
+              "$ref":"#/definitions/LabelIndexDefinition"
+            }
+          }
+        }
+      }
+    },
+    "LabelIndexDefinition":{
+      "type":"object",
+      "required": [
+        "name",
+        "propNames"
+      ],
+      "properties":{
+        "name":{
+          "description": "Label index name",
+          "type":"string"
+        },
+        "propNames":{
+          "description": "Label property names used by the index",
+          "type":"array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dir":{
+          "type":"string"
+        },
+        "options":{
+          "type":"string"
+        }
+      }
+    },
+    "LabelPropertyDefinition":{
+      "type":"object",
+      "required": [
+        "name",
+        "dataType"
+      ],
+      "properties":{
+        "name":{
+          "description": "Label property name",
+          "type":"string"
+        },
+        "dataType":{
+          "description": "Data type of the label property",
+          "type":"string"
+        },
+        "defaultValue":{
+          "description": "Default value of the label property",
+          "type":"string"
+        }
+      }
+    },
+    "ServiceResponse": {
+      "type":"object",
+      "required": [
+        "status"
+      ],
+      "properties":{
+        "status":{
+          "description": "Status",
+          "type":"string"
+        },
+        "messasge":{
+          "schema":{
+            "$ref":"#/definitions/ServiceResponseMessage"
+          }
+        }
+      }
+    },
+    "ServiceResponseMessage": {
+      "type":"object",
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties":{
+        "id":{
+          "description": "Message ID",
+          "type":"string"
+        },
+        "name":{
+          "description": "User defined namespace",
+          "type":"string"
+        },
+        "accessToken":{
+          "description": "Access token",
+          "type":"string"
+        },
+        "cluster":{
+          "description": "Zookeeper quorum address",
+          "type":"string"
+        },
+        "hTableName":{
+          "description": "HBase table name",
+          "type":"string"
+        },
+        "hTableTTL":{
+          "description": "Time to live setting for data",
+          "type":"integer"
+        },
+        "preSplitSize":{
+          "description": "Factor for the table pre-split size",
+          "type":"integer"
+        }
+      }
+    },
+    "LabelResponse": {
+      "type":"object",
+      "required": [
+        "status"
+      ],
+      "properties":{
+        "status":{
+          "description": "Status",
+          "type":"string"
+        },
+        "messasge":{
+          "schema":{
+            "$ref":"#/definitions/LabelResponseMessage"
+          }
+        }
+      }
+    },
+    "LabelResponseMessage": {
+      "type":"object",
+      "required": [
+        "labelName"
+      ],
+      "properties":{
+        "labelName":{
+          "description": "The label name",
+          "type":"string"
+        },
+        "from":{
+          "schema": {
+            "$ref":"#/definitions/LabelColumn"
+          }
+        },
+        "to":{
+          "schema": {
+            "$ref":"#/definitions/LabelColumn"
+          }
+        },
+        "isDirected":{
+          "type":"boolean"
+        },
+        "serviceName":{
+          "description": "User defined namespace",
+          "type":"string"
+        },
+        "consistencyLevel":{
+          "description": "If set to ‘strong’, only one edge is alowed between a pair of source/ target vertices. Set to ‘weak’, and multiple-edge is supported",
+          "type":"string",
+          "enum": [
+            "weak",
+            "strong"
+          ]
+        },
+        "schemaVersion":{
+          "type":"string"
+        },
+        "isAsync":{
+          "type":"boolean"
+        },
+        "compressionAlgorithm":{
+          "type":"string"
+        },
+        "defaultIndex":{
+          "schema": {
+            "$ref":"#/definitions/LabelIndexDefinition"
+          }
+        },
+        "extraIndex":{
+          "type":"array",
+          "items":{
+            "schema": {
+              "$ref":"#/definitions/LabelIndexDefinition"
+            }
+          }
+        },
+        "metaProps":{
+          "type":"array",
+          "items":{
+            "schema": {
+              "$ref":"#/definitions/LabelPropertyDefinition"
+            }
+          }
+        },
+        "options":{
+          "type":"string"
+        }
+      }
+    },
+    "LabelColumn": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type":"string"
+        },
+        "serviceName": {
+          "type":"string"
+        },
+        "columnName": {
+          "type":"string"
+        },
+        "columnType": {
+          "type":"string"
         }
       }
     }
