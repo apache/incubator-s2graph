@@ -121,18 +121,173 @@
           {
             "in":"body",
             "name":"body",
-            "description":"Service",
+            "description":"Label indices to add",
             "required":true,
             "schema":{
-              "$ref":"#/definitions/LabelIndexAddition"
+              "$ref":"#/definitions/LabelIndices"
             }
+          }
+        ],
+        "responses":{
+          "201":{
+            "description":"Successful operation",
+            "schema":{
+              "$ref":"#/definitions/LabelResponse"
+            }
+          },
+          "400":{
+            "description": "Bad request"
+          }
+        }
+      }
+    },
+    "/admin/getLabel/{name}":{
+      "get":{
+        "tags":[
+          "admin"
+        ],
+        "summary":"Get general information on a label",
+        "description":"",
+        "operationId":"getLabelByName",
+        "consumes":[
+          "application/json",
+        ],
+        "produces":[
+          "application/json"
+        ],
+        "parameters":[
+          {
+            "in":"path",
+            "name":"name",
+            "description":"Label name",
+            "required":true,
+            "type":"string"
           }
         ],
         "responses":{
           "200":{
             "description":"Successful operation",
             "schema":{
-              "$ref":"#/definitions/LabelIndexAddition"
+              "$ref":"#/definitions/LabelResponse"
+            }
+          },
+          "400":{
+            "description": "Bad request"
+          }
+        }
+      }
+    },
+    "/admin/deleteLabel/{name}":{
+      "put":{
+        "tags":[
+          "admin"
+        ],
+        "summary":"Delete a label",
+        "description":"",
+        "operationId":"deleteLabelByName",
+        "consumes":[
+          "application/json",
+        ],
+        "produces":[
+          "application/json"
+        ],
+        "parameters":[
+          {
+            "in":"path",
+            "name":"name",
+            "description":"Label name",
+            "required":true,
+            "type":"string"
+          }
+        ],
+        "responses":{
+          "200":{
+            "description":"Successful operation",
+            "schema":{
+              "$ref":"#/definitions/LabelResponse"
+            }
+          },
+          "400":{
+            "description": "Bad request"
+          }
+        }
+      }
+    },
+    "/admin/addProp/{name}":{
+      "put":{
+        "tags":[
+          "admin"
+        ],
+        "summary":"Add a new property to the label",
+        "description":"",
+        "operationId":"addPropToLabel",
+        "consumes":[
+          "application/json",
+        ],
+        "produces":[
+          "application/json"
+        ],
+        "parameters":[
+          {
+            "in":"path",
+            "name":"name",
+            "description":"Label name",
+            "required":true,
+            "type":"string"
+          },
+          {
+            "in":"body",
+            "name":"body",
+            "description":"Property definition",
+            "required":true,
+            "schema":{
+              "$ref":"#/definitions/PropertyDefinition"
+            }
+          }
+        ],
+        "responses":{
+          "201":{
+            "description":"Successful operation",
+            "schema":{
+              "$ref":"#/definitions/LabelResponse"
+            }
+          },
+          "400":{
+            "description": "Bad request"
+          }
+        }
+      }
+    },
+    "/admin/createServiceColumn":{
+      "put":{
+        "tags":[
+          "admin"
+        ],
+        "summary":"Add a new property to the label",
+        "description":"",
+        "operationId":"addPropToLabel",
+        "consumes":[
+          "application/json",
+        ],
+        "produces":[
+          "application/json"
+        ],
+        "parameters":[
+          {
+            "in":"body",
+            "name":"body",
+            "description":"Service column definition",
+            "required":true,
+            "schema":{
+              "$ref":"#/definitions/ServiceColumn"
+            }
+          }
+        ],
+        "responses":{
+          "201":{
+            "description":"Successful operation",
+            "schema":{
+              "$ref":"#/definitions/LabelResponse"
             }
           },
           "400":{
@@ -224,18 +379,14 @@
           "description": "Index definitions on the label",
           "type": "array",
           "items": {
-            "schema":{
-              "$ref":"#/definitions/LabelIndexDefinition"
-            }
+            "$ref":"#/definitions/IndexDefinition"
           }
         },
         "props": {
           "description": "Property definitions on the label",
           "type": "array",
           "items": {
-            "schema":{
-              "$ref":"#/definitions/LabelPropertyDefinition"
-            }
+            "$ref":"#/definitions/PropertyDefinition"
           }
         },
         "isDirected":{
@@ -264,7 +415,7 @@
         }
       }
     },
-   "LabelIndexAddition":{
+   "LabelIndices":{
       "type":"object",
       "required": [
         "label",
@@ -278,14 +429,12 @@
           "description": "Index definitions on the label",
           "type": "array",
           "items": {
-            "schema":{
-              "$ref":"#/definitions/LabelIndexDefinition"
-            }
+            "$ref":"#/definitions/IndexDefinition"
           }
         }
       }
     },
-    "LabelIndexDefinition":{
+    "IndexDefinition":{
       "type":"object",
       "required": [
         "name",
@@ -311,7 +460,7 @@
         }
       }
     },
-    "LabelPropertyDefinition":{
+    "PropertyDefinition":{
       "type":"object",
       "required": [
         "name",
@@ -343,9 +492,7 @@
           "type":"string"
         },
         "messasge":{
-          "schema":{
-            "$ref":"#/definitions/ServiceResponseMessage"
-          }
+          "$ref":"#/definitions/ServiceResponseMessage"
         }
       }
     },
@@ -397,9 +544,7 @@
           "type":"string"
         },
         "messasge":{
-          "schema":{
-            "$ref":"#/definitions/LabelResponseMessage"
-          }
+          "$ref":"#/definitions/LabelResponseMessage"
         }
       }
     },
@@ -414,14 +559,10 @@
           "type":"string"
         },
         "from":{
-          "schema": {
-            "$ref":"#/definitions/LabelColumn"
-          }
+          "$ref":"#/definitions/ServiceLabelColumn"
         },
         "to":{
-          "schema": {
-            "$ref":"#/definitions/LabelColumn"
-          }
+          "$ref":"#/definitions/ServiceLabelColumn"
         },
         "isDirected":{
           "type":"boolean"
@@ -448,24 +589,18 @@
           "type":"string"
         },
         "defaultIndex":{
-          "schema": {
-            "$ref":"#/definitions/LabelIndexDefinition"
-          }
+          "$ref":"#/definitions/IndexDefinition"
         },
         "extraIndex":{
           "type":"array",
           "items":{
-            "schema": {
-              "$ref":"#/definitions/LabelIndexDefinition"
-            }
+            "$ref":"#/definitions/IndexDefinition"
           }
         },
         "metaProps":{
           "type":"array",
           "items":{
-            "schema": {
-              "$ref":"#/definitions/LabelPropertyDefinition"
-            }
+            "$ref":"#/definitions/PropertyDefinition"
           }
         },
         "options":{
@@ -473,7 +608,28 @@
         }
       }
     },
-    "LabelColumn": {
+    "ServiceColumn": {
+      "type": "object",
+      "properties": {
+        "serviceName": {
+          "type":"string"
+        },
+        "columnName": {
+          "type":"string"
+        },
+        "columnType": {
+          "type":"string"
+        },
+        "props": {
+          "description": "Property definitions",
+          "type": "array",
+          "items": {
+            "$ref":"#/definitions/PropertyDefinition"
+          }
+        }
+      }
+    },
+    "ServiceLabelColumn": {
       "type": "object",
       "properties": {
         "from": {
