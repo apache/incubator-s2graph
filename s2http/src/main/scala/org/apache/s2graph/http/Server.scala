@@ -61,7 +61,7 @@ object Server extends App
 
   def uptime = System.currentTimeMillis() - startAt
 
-  def serverHealth = s"""{ "port": ${port}, "interface": "${interface}", "started_at": ${Instant.ofEpochMilli(startAt)}, "uptime": "${uptime} millis" """
+  def serverHealth = s"""{ "port": ${port}, "interface": "${interface}", "started_at": "${Instant.ofEpochMilli(startAt)}", "uptime": "${uptime} millis" }"""
 
   def health = HttpResponse(status = StatusCodes.OK, entity = HttpEntity(ContentTypes.`application/json`, serverHealth))
 
@@ -76,13 +76,12 @@ object Server extends App
         redirect("/api-docs/", StatusCodes.TemporaryRedirect)
       } ~
         path(Segments) { segs => {
-            val resPath = segs.mkString("/")
-            if (resPath.isEmpty || resPath == SwaggerIndexPage)
-              getFromResource(SwaggerIndexResPath)
-            else if (resPath.startsWith("s2http"))
-              getFromResource("META-INF/resources/" + resPath)
-            else
-              getFromResource(SwaggerWebJarBaseResPath + resPath)
+            val resPath = segs match {
+              case Nil | SwaggerIndexPage :: Nil => SwaggerIndexResPath
+              case "s2http" :: rest => "META-INF/resources/s2http/" + rest.mkString("/")
+              case _ => SwaggerWebJarBaseResPath + segs.mkString("/")
+            }
+            getFromResource(resPath)
           }
         }
     },

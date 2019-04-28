@@ -1186,7 +1186,7 @@
           "type":"string"
         },
         "timestamp":{
-          "type":"integer",
+          "type":"integer"
         },
         "props":{
           "type":"object"
