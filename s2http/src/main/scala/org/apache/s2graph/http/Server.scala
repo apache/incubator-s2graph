@@ -53,11 +53,15 @@ object Server extends App
   val port = sys.props.get("http.port").fold(8000)(_.toInt)
   val interface = sys.props.get("http.interface").fold("0.0.0.0")(identity)
 
+  val SwaggerIndexPage = "index.html"
+  val SwaggerIndexResPath = s"META-INF/resources/s2http/swagger/$SwaggerIndexPage"
+  val SwaggerWebJarBaseResPath = "META-INF/resources/webjars/swagger-ui/3.20.9/"
+
   val startAt = System.currentTimeMillis()
 
   def uptime = System.currentTimeMillis() - startAt
 
-  def serverHealth = s"""{ "port": ${port}, "interface": "${interface}", "started_at": ${Instant.ofEpochMilli(startAt)}, "uptime": "${uptime} millis" """
+  def serverHealth = s"""{ "port": ${port}, "interface": "${interface}", "started_at": "${Instant.ofEpochMilli(startAt)}", "uptime": "${uptime} millis" }"""
 
   def health = HttpResponse(status = StatusCodes.OK, entity = HttpEntity(ContentTypes.`application/json`, serverHealth))
 
@@ -67,6 +71,20 @@ object Server extends App
     pathPrefix("mutate")(mutateRoute),
     pathPrefix("admin")(adminRoute),
     pathPrefix("graphql")(graphqlRoute),
+    pathPrefix("api-docs") {
+      pathEnd {
+        redirect("/api-docs/", StatusCodes.TemporaryRedirect)
+      } ~
+        path(Segments) { segs => {
+            val resPath = segs match {
+              case Nil | SwaggerIndexPage :: Nil => SwaggerIndexResPath
+              case "s2http" :: rest => "META-INF/resources/s2http/" + rest.mkString("/")
+              case _ => SwaggerWebJarBaseResPath + segs.mkString("/")
+            }
+            getFromResource(resPath)
+          }
+        }
+    },
     get(complete(health))
   )
 
