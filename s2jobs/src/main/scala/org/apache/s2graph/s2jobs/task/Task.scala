@@ -43,8 +43,16 @@ object TaskConf {
     taskConf.options.filterKeys(S2GraphConfigs.DBConfigs.DEFAULTS.keySet)
   }
 
+  def parseMetaStoreConfigs(options: Map[String, String]): Map[String, Any] = {
+    options.filterKeys(S2GraphConfigs.DBConfigs.DEFAULTS.keySet)
+  }
+
   def parseLocalCacheConfigs(taskConf: TaskConf): Map[String, Any] = {
     taskConf.options.filterKeys(S2GraphConfigs.CacheConfigs.DEFAULTS.keySet).mapValues(_.toInt)
+  }
+
+  def parseLocalCacheConfigs(options: Map[String, String]): Map[String, Any] = {
+    options.filterKeys(S2GraphConfigs.CacheConfigs.DEFAULTS.keySet).mapValues(_.toInt)
   }
 
   def parseTransformers(taskConf: TaskConf): Seq[Transformer] = {
@@ -68,6 +76,8 @@ trait Task extends Serializable with Logger {
   def mandatoryOptions: Set[String]
 
   def isValidate: Boolean = mandatoryOptions.subsetOf(conf.options.keySet)
+
+  def getName: String = conf.name
 
   require(isValidate,
     s"""${LOG_PREFIX} not exists mandatory options '${mandatoryOptions.mkString(",")}'

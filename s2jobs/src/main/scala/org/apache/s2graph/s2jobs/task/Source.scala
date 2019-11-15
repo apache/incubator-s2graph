@@ -24,7 +24,8 @@ import org.apache.s2graph.s2jobs.Schema
 import org.apache.s2graph.s2jobs.loader.{HFileGenerator, SparkBulkLoaderTransformer}
 import org.apache.s2graph.s2jobs.serde.reader.S2GraphCellReader
 import org.apache.s2graph.s2jobs.serde.writer.RowDataFrameWriter
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.types.{DataType, StructType}
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import play.api.libs.json.{JsObject, Json}
 
 
@@ -35,6 +36,21 @@ import play.api.libs.json.{JsObject, Json}
   */
 abstract class Source(override val conf:TaskConf) extends Task {
   def toDF(ss:SparkSession):DataFrame
+}
+
+class DefaultSource(conf:TaskConf) extends Source(conf) {
+  override def mandatoryOptions: Set[String] = Set("format")
+
+  override def toDF(ss: SparkSession): DataFrame = {
+    val isStreamSource = conf.options.getOrElse("is_stream_source", "false").toBoolean
+
+    if (isStreamSource) {
+      ss.readStream.options(conf.options).load()
+    } else {
+      ss.read.options(conf.options).load()
+    }
+
+  }
 }
 
 class KafkaSource(conf:TaskConf) extends Source(conf) {
@@ -176,4 +192,16 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
 
     ss.sqlContext.createDataFrame(kvs, schema)
   }
+}
+
+case class EmptySource(taskConf: TaskConf) extends Source(taskConf) {
+  val options = taskConf.options
+
+  override def toDF(ss: SparkSession): DataFrame = {
+    val schema = DataType.fromJson(options("schema")).asInstanceOf[StructType]
+
+    ss.createDataFrame(ss.sparkContext.parallelize(Seq.empty[Row]), schema)
+  }
+
+  override def mandatoryOptions: Set[String] = Set("schema")
 }

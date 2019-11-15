@@ -19,17 +19,20 @@
 
 package org.apache.s2graph.s2jobs
 
+import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.s2jobs.udfs.Udf
+import org.apache.s2graph.s2jobs.utils.{DBTransactionUtil, TransactionUtil}
 import org.apache.spark.sql.SparkSession
 import play.api.libs.json.{JsValue, Json}
 
 import scala.io.Source
 
 case class JobOption(
-                      name:String = "S2BatchJob",
-                      confType:String = "db",
-                      jobId:Int = -1,
-                      confFile:String = ""
+                      name: String = "S2BatchJob",
+                      confType: String = "db",
+                      jobId: Int = -1,
+                      confFile: String = "",
+                      incremental: Boolean = false
                     )
 
 object JobLauncher extends Logger {
@@ -90,7 +93,15 @@ object JobLauncher extends Logger {
       udf.register(ss, udfOption.name, udfOption.params.getOrElse(Map.empty))
     }
 
-    val job = new Job(ss, jobDescription)
-    job.run()
+    if (options.incremental) {
+      val config = ConfigFactory.load()
+      val txUtil = DBTransactionUtil(config)
+
+      TransactionUtil.withTx(ss, options.name, jobDescription, txUtil)(_.run())
+    } else {
+      val job = new Job(ss, jobDescription)
+
+      job.run()
+    }
   }
 }
