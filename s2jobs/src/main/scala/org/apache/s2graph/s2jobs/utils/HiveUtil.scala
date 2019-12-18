@@ -6,7 +6,7 @@ import org.apache.spark.sql.types.StructType
 
 object HiveUtil {
 
-  def getModificationTime(ss: SparkSession,
+  def getTableModificationTime(ss: SparkSession,
                           table: String,
                           dataBase: String): Option[Long] = {
     val sessionCatalog = ss.sessionState.catalog

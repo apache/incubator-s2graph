@@ -58,45 +58,64 @@ object CommitType {
   }
 }
 
-trait CommitType
-
-case object TimeType extends CommitType {
-  override def toString: String = "time"
+trait CanCommit[A] {
+  def toCommitId(a: A): String
 }
 
-case object PathType extends CommitType {
-  override def toString: String = "path"
-}
-
-case object HiveType extends CommitType {
-  override def toString: String = "hive"
-}
-
-trait CommitId
-
-case object TimeId extends CommitId {
+object CanCommit {
   val dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+  val failed: Long = 0L
 
-  def apply(time: Long): String =
-    if (time == failed) "Failed to fetch modification time"
-    else dateFormat.format(new Date(time))
+  implicit val longCommitId: CanCommit[Long] = new CanCommit[Long] {
+    override def toCommitId(time: Long): String =
+      if (time == failed) "Failed to fetch modification time"
+      else dateFormat.format(new Date(time))
+  }
 
-  def failed: Long = 0L
+  implicit val fileStatusCommitId: CanCommit[FileStatus] = new CanCommit[FileStatus] {
+    override def toCommitId(fileStatus: FileStatus): String = fileStatus.getPath.toUri.getPath
+  }
 }
 
-case object PathId extends CommitId {
-  def apply(fileStatus: FileStatus): String = fileStatus.getPath.toUri.getPath
+trait CommitType {
+  def commitId[A: CanCommit](value: A): String = implicitly[CanCommit[A]].toCommitId(value)
+
+  def toColumnValue: String
+}
+
+/**
+ * Compares numeric ordering of modification time of file sources.
+ * commit_id is datetime of latest read directory / file's modification time.
+ */
+case object TimeType extends CommitType {
+  override def toColumnValue: String = "time"
+}
+
+/**
+ * Compares lexicographic ordering of paths
+ * commit_id is path of latest read directory / file.
+ */
+case object PathType extends CommitType {
+  override def toColumnValue: String = "path"
+}
+
+/**
+ * Compares numeric ordering of modification time of hive sources.
+ * commit_id is datetime of hive sources modification time.
+ */
+case object HiveType extends CommitType {
+  override def toColumnValue: String = "hive"
 }
 
 
 /**
-  * TransactionUtil supports incremental processing of spark batch jobs by recording
-  * each latest path(or partition) processed of Filesource.
-  *
-  * Incremental processing of Hive tables are also supported by recording each tables modification time.
-  * HiveSource in incremental job will be processed only when its modification time has been updated excluding first time read..
-  *
-  */
+ * TransactionUtil supports incremental processing of spark batch jobs by recording
+ * each latest path(or partition) processed of Filesource.
+ *
+ * Incremental processing of Hive tables are also supported by recording each tables modification time.
+ * HiveSource in incremental job will be processed only when its modification time has been updated excluding first time read..
+ *
+ */
 object TransactionUtil {
   val BaseTxTableKey = "baseTxTable"
   val typeKey = "type"
@@ -107,29 +126,33 @@ object TransactionUtil {
 
 
   /** Return filter function according to CommitType
-    *
-    * @param fs
-    * @param lastTx
-    * @return
-    */
-  def toFileFilterFunc(fs: FileSystem, lastTx: Option[TxLog]): FileStatus => Boolean = {
-    val lastModificationTime = lastTx.map(_.lastModifiedAt)
+   *
+   * @param fs
+   * @param lastTx
+   * @return
+   */
+  def toFileFilterFunc(fs: FileSystem, lastTx: Option[TxLog]): FileStatus => Boolean = (fileStatus: FileStatus) => {
+    val valid = lastTx match {
+      case None => true
+      case Some(tx) =>
+        tx.commitType match {
+          case PathType => fileStatus.getPath.toUri.getPath > tx.commitId
+          case TimeType => fileStatus.getModificationTime > tx.lastModifiedAt
+        }
+    }
 
-    fileStatus: FileStatus =>
-      lastModificationTime match {
-        case Some(time) => fileStatus.getModificationTime > time
-        case None => true
-      }
+    valid && (!HDFSUtil.isEmptyDirectory(fs, fileStatus.getPath))
   }
 
+
   /** list subdirectory within given partitions with was modified after last transaction log
-    *
-    * @param ss
-    * @param basePath
-    * @param partitionKeys
-    * @param lastTx
-    * @param readLeafFiles
-    */
+   *
+   * @param ss
+   * @param basePath
+   * @param partitionKeys
+   * @param lastTx
+   * @param readLeafFiles
+   */
   def listAllPath(ss: SparkSession,
                   basePath: String,
                   partitionKeys: Seq[String],
@@ -162,33 +185,38 @@ object TransactionUtil {
   }
 
   /**
-    * Map each FileSource and its each path with corresponding
-    * incremental sub-partitions(directories) after last TxLog
-    *
-    * parameters for FileSource in Incremental Jobs
-    *
-    * - partition_keys:         TxLog will record latest path within given partition.
-    * if not specified, TxLog will record just the given path
-    * only when the path has been modified after last TxLog
-    *
-    * - initial_offset:         file or partition count to read at initial read of source
-    *
-    * - incomplete_partitions:  if incomplete partition number K is specified,
-    * incremental job will skip latest K partitions of given path
-    *
-    * - read_leaf_file:         given "true", Incremental Job will record leaf file as TxLog
-    * [Warning] This option can cause too many tasks in spark job
-    * trying to merge multiple paths in to one data frame
-    * when reading the source.
-    *
-    * - skip_mapping:           given "true", Incremental Job will skip to map sources each paths.
-    *
-    * @param fileSources
-    * @param ss
-    * @param jobName
-    * @param jobDesc
-    * @param txUtil
-    */
+   * Map each FileSource and its each path with corresponding
+   * incremental sub-partitions(directories) after last TxLog
+   *
+   * parameters for FileSource in Incremental Jobs
+   * every parameters are optional
+   *
+   * - partition_keys:         TxLog will record latest path within given partition.
+   *                           if not specified, TxLog will record just the given path
+   *                           only when the path has been modified after last TxLog
+   *
+   * - initial_offset:         file or partition count to read at initial read of source
+   *
+   * - incomplete_partitions:  if incomplete partition number K is specified,
+   *                           incremental job will skip latest K partitions of given path
+   *
+   * - max_paths:              number of maximum paths count to be read in each interval
+   *
+   * - read_leaf_file:         given "true", Incremental Job will record leaf file as TxLog
+   *                           [Warning] This option can cause too many tasks in spark job
+   *                           trying to merge multiple paths in to one data frame
+   *                           when reading the source.
+   *
+   * - skip_mapping:           given "true", Incremental Job will skip to map sources each paths.
+   *
+   *
+   *
+   * @param fileSources
+   * @param ss
+   * @param jobName
+   * @param jobDesc
+   * @param txUtil
+   */
   def toTargetsPerFileSourcePath(fileSources: Seq[Source],
                                  ss: SparkSession,
                                  jobName: String,
@@ -199,8 +227,11 @@ object TransactionUtil {
       val paths = source.conf.options("paths").split(",")
       val partitionKeys = source.conf.options.get("partition_keys")
         .map { s => s.split(",").map(_.trim).filter(_.nonEmpty).toSeq }.getOrElse(Nil)
+
       val initialOffset = source.conf.options.get("initial_offset").map(_.toInt)
       val incompletePartitions = source.conf.options.get("incomplete_partitions").map(_.toInt)
+      val maxPaths = source.conf.options.get("max_paths").map(_.toInt)
+
       val readLeafFile = source.conf.options.getOrElse("read_leaf_file", "false") == "true"
       val skipMapping = source.conf.options.getOrElse("skip_mapping", "false") == "true"
 
@@ -210,12 +241,14 @@ object TransactionUtil {
           val txId = TxId(jobName, jobDesc.name, sourceName, path)
           val lastTx = txUtil.readTx(txId)
 
-          val targetList = listAllPath(ss, path, partitionKeys, lastTx, readLeafFile)
-          val completedTargets = incompletePartitions.map { k => targetList.dropRight(k) }.getOrElse(targetList)
+          val filteredTargets =
+            listAllPath(ss, path, partitionKeys, lastTx, readLeafFile)
+              .dropRight(incompletePartitions.getOrElse(0))
+              .take(maxPaths.getOrElse(Int.MaxValue))
 
           val targets = lastTx match {
-            case Some(_) => completedTargets
-            case None => initialOffset.map(k => completedTargets.takeRight(k)).getOrElse(completedTargets)
+            case Some(_) => filteredTargets
+            case None => initialOffset.map(k => filteredTargets.takeRight(k)).getOrElse(filteredTargets)
           }
 
           path -> targets
@@ -227,14 +260,14 @@ object TransactionUtil {
   }
 
   /**
-    * Replace each FileSources to read paths specified at targetsPerFileSourcePath.
-    *
-    * @param targetsPerFileSourcePath
-    * @param ss
-    * @param jobName
-    * @param jobDesc
-    * @param txUtil
-    */
+   * Replace each FileSources to read paths specified at targetsPerFileSourcePath.
+   *
+   * @param targetsPerFileSourcePath
+   * @param ss
+   * @param jobName
+   * @param jobDesc
+   * @param txUtil
+   */
   def toNewFileSources(targetsPerFileSourcePath: Map[Source, Map[String, Seq[FileStatus]]],
                        ss: SparkSession,
                        jobName: String,
@@ -269,31 +302,30 @@ object TransactionUtil {
   }
 
   /**
-    * Write TxLog of FileSources
-    *
-    * @param targetsPerSourcePath
-    * @param jobName
-    * @param jobDesc
-    * @param txUtil
-    */
+   * Write TxLog of FileSources
+   *
+   * @param targetsPerSourcePath
+   * @param jobName
+   * @param jobDesc
+   * @param txUtil
+   */
   def writeFileTxLog(targetsPerSourcePath: Map[Source, Map[String, Seq[FileStatus]]],
                      jobName: String,
                      jobDesc: JobDescription,
                      txUtil: TransactionUtil): Unit = {
+    import CanCommit._
+
     targetsPerSourcePath.foreach { case (source, innerMap) =>
       val sourceName = source.getName
-      val commitType = CommitType(source.conf.options.getOrElse("commit_type", "path"))
+
 
       innerMap.foreach { case (path, targets) =>
         val txId = TxId(jobName, jobDesc.name, sourceName, path)
 
         targets.lastOption.foreach { target =>
           val lastModifiedAt = target.getModificationTime
-
-          val commitId = commitType match {
-            case PathType => PathId(target)
-            case TimeType => TimeId(lastModifiedAt)
-          }
+          val commitType = CommitType(source.conf.options.getOrElse("commit_type", "path"))
+          val commitId = commitType.commitId(target)
 
           val txLog = TxLog(0, txId, commitType = commitType, commitId = commitId,
             lastModifiedAt = lastModifiedAt, enabled = None)
@@ -305,14 +337,14 @@ object TransactionUtil {
   }
 
   /**
-    * Map each HiveSources with its modification time
-    *
-    * @param hiveSources
-    * @param ss
-    * @param jobName
-    * @param jobDesc
-    * @param txUtil
-    */
+   * Map each HiveSources with its modification time
+   *
+   * @param hiveSources
+   * @param ss
+   * @param jobName
+   * @param jobDesc
+   * @param txUtil
+   */
   def toHiveSourcesModTimeMap(hiveSources: Seq[Source],
                               ss: SparkSession,
                               jobName: String,
@@ -338,37 +370,39 @@ object TransactionUtil {
       lastTx match {
         case Some(txLog: TxLog) =>
           val txLastModifiedAt = txLog.lastModifiedAt
-          val tableLastModifiedAt = HiveUtil.getModificationTime(ss, table, database)
+          val tableLastModifiedAt = HiveUtil.getTableModificationTime(ss, table, database)
 
           tableLastModifiedAt.map { time =>
             if (time > txLastModifiedAt) source -> time
             else emptySource -> time
-          }.getOrElse(source -> TimeId.failed)
+          }.getOrElse(source -> CanCommit.failed)
 
-        case None => source -> HiveUtil.getModificationTime(ss, table, database).getOrElse(0L)
+        case None => source -> HiveUtil.getTableModificationTime(ss, table, database).getOrElse(0L)
       }
     }.toMap
   }
 
   /**
-    * Write TxLog of HiveSources
-    *
-    * @param hiveSourcesMap
-    * @param jobName
-    * @param jobDesc
-    * @param txUtil
-    */
+   * Write TxLog of HiveSources
+   *
+   * @param hiveSourcesMap
+   * @param jobName
+   * @param jobDesc
+   * @param txUtil
+   */
   def writeHiveTxLog(hiveSourcesMap: Map[Source, Long],
                      jobName: String,
                      jobDesc: JobDescription,
                      txUtil: TransactionUtil): Unit = {
+    import CanCommit._
+
     hiveSourcesMap.foreach { case (source, time) =>
       val table = source.conf.options("table")
       val database = source.conf.options("database")
       val sourceName = source.getName
 
       val txId = TxId(jobName, jobDesc.name, sourceName, s"$database.$table")
-      val commitId = TimeId(time)
+      val commitId = HiveType.commitId(time)
 
       val txLog = TxLog(0, txId, commitType = HiveType, commitId = commitId,
         lastModifiedAt = time, enabled = None)
@@ -379,14 +413,14 @@ object TransactionUtil {
 
 
   /**
-    * Main function of TransactionUtil
-    *
-    * @param ss
-    * @param jobName
-    * @param jobDesc
-    * @param txUtil
-    * @param func
-    */
+   * Main function of TransactionUtil
+   *
+   * @param ss
+   * @param jobName
+   * @param jobDesc
+   * @param txUtil
+   * @param func
+   */
   def withTx(ss: SparkSession,
              jobName: String,
              jobDesc: JobDescription,
@@ -433,27 +467,27 @@ trait TransactionUtil {
   val baseTxTable = SQLSyntax.createUnsafely(baseTxTableRaw)
 
   /**
-    * read last committed transaction using context provided from spark session.
-    *
-    * @param txId
-    * @return
-    */
+   * read last committed transaction using context provided from spark session.
+   *
+   * @param txId
+   * @return
+   */
   def readTx(txId: TxId): Option[TxLog]
 
   /**
-    * write latest target as last committed transaction
-    *
-    * @param txLog
-    */
+   * write latest target as last committed transaction
+   *
+   * @param txLog
+   */
   def writeTx(txLog: TxLog): Unit
 }
 
 /**
-  * the underlying JDBC Driver is singleton, so be sure to initialize singleton instance of this.
-  * currently only expect FileSource. need to add HiveSource support.
-  *
-  * @param config
-  */
+ * the underlying JDBC Driver is singleton, so be sure to initialize singleton instance of this.
+ * currently only expect FileSource. need to add HiveSource support.
+ *
+ * @param config
+ */
 case class DBTransactionUtil(config: Config,
                              options: Map[String, String] = Map.empty) extends TransactionUtil {
 
@@ -484,11 +518,11 @@ case class DBTransactionUtil(config: Config,
   }
 
   /**
-    * read last committed transaction using context provided from spark session.
-    *
-    * @param txId
-    * @return
-    */
+   * read last committed transaction using context provided from spark session.
+   *
+   * @param txId
+   * @return
+   */
   override def readTx(txId: TxId): Option[TxLog] = {
     DB readOnly { implicit session =>
       readTxInner(txId)
@@ -518,7 +552,7 @@ case class DBTransactionUtil(config: Config,
           VALUES
             (
               ${txLog.txId.jobName}, ${txLog.txId.appName}, ${txLog.txId.sourceName}, ${txLog.txId.path},
-              ${txLog.commitType}, ${txLog.commitId}, ${txLog.lastModifiedAt}, ${txLog.enabled}, now()
+              ${txLog.commitType.toColumnValue}, ${txLog.commitId}, ${txLog.lastModifiedAt}, ${txLog.enabled}, now()
             )
           ON DUPLICATE KEY UPDATE
             commit_id = ${txLog.commitId},
@@ -529,10 +563,10 @@ case class DBTransactionUtil(config: Config,
   }
 
   /**
-    * write latest target as last committed transaction
-    *
-    * @param txLog
-    */
+   * write latest target as last committed transaction
+   *
+   * @param txLog
+   */
   override def writeTx(txLog: TxLog): Unit = {
     DB localTx { implicit session =>
       try {

@@ -48,5 +48,28 @@ object HDFSUtil {
 
     Option(latestPath).map(_.getPath)
   }
+
+  def isEmptyDirectory(fs: FileSystem, path: Path): Boolean = {
+    val ls = fs.listStatus(path)
+    ls.isEmpty || (ls.size == 1 && isMetaFile(ls.head.getPath))
+  }
+
+  def isMetaFile(path: Path): Boolean = path.getName.startsWith("_")
+
+  def reducePaths(fs: FileSystem, paths: Set[Path]): Seq[Path] = {
+    val reduced = paths.groupBy(path => path.getParent).foldLeft(Seq[Path]()){ case (ls, (parentPath, childPaths)) =>
+        val allPathsInParent = fs.listStatus(parentPath).map(_.getPath).filterNot(isMetaFile).toSet
+        if (allPathsInParent equals childPaths) ls :+ parentPath
+        else ls ++ childPaths
+    }
+
+    if (reduced.toSet equals paths) reduced
+    else reducePaths(fs, reduced.toSet)
+  }
+
+  def reducePaths(ss: SparkSession, paths: Set[FileStatus]): Seq[FileStatus] = {
+    val fs = FileSystem.get(ss.sparkContext.hadoopConfiguration)
+    reducePaths(fs, paths.map(_.getPath)).map(fs.getFileStatus)
+  }
 }
 
