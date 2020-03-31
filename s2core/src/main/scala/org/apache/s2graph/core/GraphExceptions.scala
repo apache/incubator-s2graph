@@ -20,10 +20,10 @@
 package org.apache.s2graph.core
 
 object GraphExceptions {
-  var fillStckTrace = true
+  var fillStackTrace = true
   class BaseException(msg : String) extends Exception(msg){
     override def fillInStackTrace : Exception = {
-      if(fillStckTrace) super.fillInStackTrace()
+      if(fillStackTrace) super.fillInStackTrace()
       this
     }
   }
